@@ -1,0 +1,45 @@
+{
+  "pluginAlias": "TemperatureForecast",
+  "pluginType": "platform",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "temperature_forecast": {
+        "type": "object",
+        "title": "Temperature Forecast",
+        "properties": {
+          "name": {
+            "title": "Switch Name",
+            "type": "string",
+            "default": "Temperature Forecast"
+          },
+          "station_id": {
+            "title": "NWS Station ID",
+            "type": "string",
+            "default": "PHI",
+            "description": "National Weather Service station ID (e.g., PHI for Philadelphia)"
+          },
+          "high_temp_threshold": {
+            "title": "High Temperature Threshold (°F)",
+            "type": "number",
+            "default": 80,
+            "description": "Temperature above which the high temp switch will turn on"
+          },
+          "low_temp_threshold": {
+            "title": "Low Temperature Threshold (°F)",
+            "type": "number",
+            "default": 32,
+            "description": "Temperature below which the low temp switch will turn on"
+          },
+          "check_interval": {
+            "title": "Check Interval (minutes)",
+            "type": "integer",
+            "default": 30,
+            "minimum": 15,
+            "description": "How often to check temperature forecast (minimum 15 minutes)"
+          }
+        }
+      }
+    }
+  }
+} 

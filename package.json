@@ -1,0 +1,29 @@
+{
+  "name": "homebridge-temperature-forecast",
+  "version": "1.0.0",
+  "description": "Homebridge plugin for temperature forecast monitoring",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "homebridge-plugin",
+    "temperature",
+    "weather",
+    "forecast",
+    "homekit"
+  ],
+  "author": "Jeffrey Alexander",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JMAlexander/homebridge-temperature-forecast.git"
+  },
+  "engines": {
+    "homebridge": ">=1.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "homebridge-temperature-forecast": "file:../../../../var/lib/homebridge/node_modules/homebridge-temperature-forecast"
+  }
+}
