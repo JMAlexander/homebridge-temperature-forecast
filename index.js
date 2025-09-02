@@ -76,13 +76,13 @@ class HighTempAccessory extends TemperatureForecastAccessory {
     // Call parent constructor
     super(log, name, 'high', platform, api);
     
-    // Create OccupancySensor service
-    const sensorService = this.addService(Service.OccupancySensor, name);
+    // Create ContactSensor service
+    const sensorService = this.addService(Service.ContactSensor, name);
     
-    // Bind the OccupancyDetected characteristic
+    // Bind the ContactSensorState characteristic
     this.bindCharacteristic(
       sensorService, 
-      Characteristic.OccupancyDetected, 
+      Characteristic.ContactSensorState, 
       'High Temperature Status',
       this.getHighTempState.bind(this),
       null,
@@ -96,6 +96,7 @@ class HighTempAccessory extends TemperatureForecastAccessory {
   }
   
   // Getter method for high temperature state
+  // ContactSensorState: 0 = contact detected (normal), 1 = no contact/open (threshold triggered)
   getHighTempState() {
     const state = this.platform.highTempState ? 1 : 0;
     return state;
@@ -108,13 +109,13 @@ class LowTempAccessory extends TemperatureForecastAccessory {
     // Call parent constructor
     super(log, name, 'low', platform, api);
     
-    // Create OccupancySensor service
-    const sensorService = this.addService(Service.OccupancySensor, name);
+    // Create ContactSensor service
+    const sensorService = this.addService(Service.ContactSensor, name);
     
-    // Bind the OccupancyDetected characteristic
+    // Bind the ContactSensorState characteristic
     this.bindCharacteristic(
       sensorService,
-      Characteristic.OccupancyDetected,
+      Characteristic.ContactSensorState,
       'Low Temperature Status',
       this.getLowTempState.bind(this),
       null,
@@ -128,6 +129,7 @@ class LowTempAccessory extends TemperatureForecastAccessory {
   }
   
   // Getter method for low temperature state
+  // ContactSensorState: 0 = contact detected (normal), 1 = no contact/open (threshold triggered)
   getLowTempState() {
     const state = this.platform.lowTempState ? 1 : 0;
     return state;
