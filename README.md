@@ -5,9 +5,9 @@ This Homebridge plugin provides temperature forecast monitoring using the Nation
 ## Features
 
 ### Temperature Forecast Monitoring
-- Creates two read-only switches that turn on based on temperature thresholds
-- High temperature switch: turns on when forecast high temperature exceeds threshold
-- Low temperature switch: turns on when forecast low temperature falls below threshold
+- Creates two read-only **sensors** that turn on based on temperature thresholds
+- High temperature sensor: detects when forecast high temperature exceeds threshold
+- Low temperature sensor: detects when forecast low temperature falls below threshold
 - Uses real-time forecast data from the National Weather Service
 - Configurable check interval (minimum 15 minutes)
 
@@ -29,8 +29,8 @@ npm install -g homebridge-temperature-forecast
   "platforms": [
     {
       "platform": "TemperatureForecast",
+      "name": "Temperature Forecast",
       "temperature_forecast": {
-        "name": "Temperature Forecast",
         "station_id": "PHI",
         "high_temp_threshold": 80,
         "low_temp_threshold": 32,
@@ -44,37 +44,33 @@ npm install -g homebridge-temperature-forecast
 ## Configuration
 
 ### Temperature Forecast
-- `name`: The base name for the switches in HomeKit (default: "Temperature Forecast")
+- `name`: The base name for the sensors in HomeKit (default: "Temperature Forecast")
 - `station_id`: The NWS weather station ID (default: "PHI" for Philadelphia)
-- `high_temp_threshold`: Temperature above which the high temp switch will turn on (default: 80°F)
-- `low_temp_threshold`: Temperature below which the low temp switch will turn on (default: 32°F)
+- `high_temp_threshold`: Temperature above which the high temp sensor will detect (default: 80°F)
+- `low_temp_threshold`: Temperature below which the low temp sensor will detect (default: 32°F)
 - `check_interval`: How often to check temperature forecast in minutes (default: 30, minimum: 15)
-
-## Finding Your Station ID
-
-### NWS Station ID
-1. Visit https://www.weather.gov/
-2. Enter your location
-3. Look for the "Observations" section
-4. Find the nearest station ID
-
-Common NWS station IDs:
-- PHI: Philadelphia
-- NYC: New York City
-- LAX: Los Angeles
-- ORD: Chicago O'Hare
 
 ## How It Works
 
-The plugin creates two switches:
-1. **High Temperature Switch**: Turns ON when the forecast high temperature exceeds your threshold
-2. **Low Temperature Switch**: Turns ON when the forecast low temperature falls below your threshold
+The plugin creates two **OccupancySensors**:
+1. **High Temperature Sensor**: Detects when the forecast high temperature exceeds your threshold
+2. **Low Temperature Sensor**: Detects when the forecast low temperature falls below your threshold
 
-Both switches are read-only and automatically update based on the latest forecast data from the National Weather Service.
+Both sensors are read-only and automatically update based on the latest forecast data from the National Weather Service.
+
+### Using Sensors in HomeKit Automations
+- You can use these sensors as triggers in HomeKit automations (e.g., "If High Temperature Sensor detects, then ...").
+- In the Home app or Eve app, look for the sensors named "Temperature Forecast - High Temp" and "Temperature Forecast - Low Temp".
+
+## Migration Note
+
+**If you are upgrading from a version that used switches:**
+- The plugin now uses sensors instead of switches for temperature triggers.
+- You may need to remove the old switch accessories from HomeKit manually if they remain after upgrading.
 
 ## Troubleshooting
 
-If the switches aren't updating:
+If the sensors aren't updating:
 1. Check the Homebridge logs for any error messages
 2. Verify your station ID is correct
 3. Ensure your check intervals aren't too frequent

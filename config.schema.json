@@ -6,10 +6,10 @@
     "properties": {
       "temperature_forecast": {
         "type": "object",
-        "title": "Temperature Forecast",
+        "title": "Temperature Forecast Sensors",
         "properties": {
           "name": {
-            "title": "Switch Name",
+            "title": "Sensor Name",
             "type": "string",
             "default": "Temperature Forecast"
           },
@@ -23,18 +23,18 @@
             "title": "High Temperature Threshold (°F)",
             "type": "number",
             "default": 80,
-            "description": "Temperature above which the high temp switch will turn on"
+            "description": "Temperature above which the high temp sensor will detect (sensor will show 'detected')"
           },
           "low_temp_threshold": {
             "title": "Low Temperature Threshold (°F)",
             "type": "number",
             "default": 32,
-            "description": "Temperature below which the low temp switch will turn on"
+            "description": "Temperature below which the low temp sensor will detect (sensor will show 'detected')"
           },
           "check_interval": {
             "title": "Check Interval (minutes)",
             "type": "integer",
-            "default": 30,
+            "default": 60,
             "minimum": 15,
             "description": "How often to check temperature forecast (minimum 15 minutes)"
           }

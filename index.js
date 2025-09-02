@@ -5,7 +5,7 @@ class TemperatureForecastPlatform {
     this.log = log;
     this.config = config;
     this.api = api;
-    this.switches = [];
+    this.sensors = [];
     this.pollingIntervals = {};
     
     this.log.info('TemperatureForecast platform constructor called');
@@ -20,18 +20,18 @@ class TemperatureForecastPlatform {
 
     if (api) {
       this.api.on('didFinishLaunching', () => {
-        this.log.info('Homebridge finished launching, initializing switches...');
-        this.initializeSwitches();
+        this.log.info('Homebridge finished launching, initializing sensors...');
+        this.initializeSensors();
       });
     }
   }
 
-  initializeSwitches() {
-    // Initialize temperature forecast switches if configured
+  initializeSensors() {
+    // Initialize temperature forecast sensors if configured
     if (this.config.temperature_forecast) {
       const tempConfig = this.config.temperature_forecast;
-      this.log.debug('Initializing temperature forecast switches with config:', JSON.stringify(tempConfig, null, 2));
-      this.createTemperatureSwitches(
+      this.log.debug('Initializing temperature forecast sensors with config:', JSON.stringify(tempConfig, null, 2));
+      this.createTemperatureSensors(
         tempConfig.name || 'Temperature Forecast',
         tempConfig.station_id || 'PHI',
         tempConfig.high_temp_threshold || 80,
@@ -39,47 +39,39 @@ class TemperatureForecastPlatform {
         (tempConfig.check_interval || 30) * 60 * 1000
       );
     } else {
-      this.log.warn('No temperature_forecast configuration found, skipping temperature switches');
+      this.log.warn('No temperature_forecast configuration found, skipping temperature sensors');
     }
   }
 
-  createTemperatureSwitches(name, stationId, highTempThreshold, lowTempThreshold, checkInterval) {
-    this.log.info(`Creating temperature forecast switches: ${name}`);
+  createTemperatureSensors(name, stationId, highTempThreshold, lowTempThreshold, checkInterval) {
+    this.log.info(`Creating temperature forecast sensors: ${name}`);
     this.log.debug(`Station ID: ${stationId}, High temp threshold: ${highTempThreshold}°F, Low temp threshold: ${lowTempThreshold}°F, Check interval: ${checkInterval / 60000} minutes`);
     
-    // Create high temperature switch
+    // Create high temperature sensor
     const highTempName = `${name} - High Temp`;
     const highTempAccessory = new this.api.platformAccessory(highTempName, this.api.hap.uuid.generate(highTempName));
-    const highTempSwitchService = new this.api.hap.Service.Switch(highTempName);
-    
-    // Add the On characteristic (read-only)
-    const highTempOnCharacteristic = highTempSwitchService.getCharacteristic(this.api.hap.Characteristic.On);
-    highTempOnCharacteristic.on('set', (value, callback) => {
-      this.log.warn(`High temperature switch is read-only, cannot be set to ${value ? 'ON' : 'OFF'}`);
-      callback();
-    });
-
-    highTempAccessory.addService(highTempSwitchService);
+    const highTempSensorService = new this.api.hap.Service.OccupancySensor(highTempName);
+    highTempAccessory.addService(highTempSensorService);
     this.api.registerPlatformAccessories('homebridge-temperature-forecast', 'TemperatureForecast', [highTempAccessory]);
-    this.log.info(`Successfully registered high temperature switch accessory: ${highTempName}`);
-    this.switches.push(highTempAccessory);
+    this.log.info(`Successfully registered high temperature sensor accessory: ${highTempName}`);
+    this.sensors.push(highTempAccessory);
+    // Track current state for onGet
+    this.currentHighTempState = 0;
+    highTempSensorService.getCharacteristic(this.api.hap.Characteristic.OccupancyDetected)
+      .onGet(() => this.currentHighTempState);
 
-    // Create low temperature switch
+    // Create low temperature sensor
     const lowTempName = `${name} - Low Temp`;
     const lowTempAccessory = new this.api.platformAccessory(lowTempName, this.api.hap.uuid.generate(lowTempName));
-    const lowTempSwitchService = new this.api.hap.Service.Switch(lowTempName);
-    
-    // Add the On characteristic (read-only)
-    const lowTempOnCharacteristic = lowTempSwitchService.getCharacteristic(this.api.hap.Characteristic.On);
-    lowTempOnCharacteristic.on('set', (value, callback) => {
-      this.log.warn(`Low temperature switch is read-only, cannot be set to ${value ? 'ON' : 'OFF'}`);
-      callback();
-    });
-
-    lowTempAccessory.addService(lowTempSwitchService);
+    const lowTempSensorService = new this.api.hap.Service.OccupancySensor(lowTempName);
+    lowTempAccessory.addService(lowTempSensorService);
     this.api.registerPlatformAccessories('homebridge-temperature-forecast', 'TemperatureForecast', [lowTempAccessory]);
-    this.log.info(`Successfully registered low temperature switch accessory: ${lowTempName}`);
-    this.switches.push(lowTempAccessory);
+    this.log.info(`Successfully registered low temperature sensor accessory: ${lowTempName}`);
+    this.sensors.push(lowTempAccessory);
+    // Track current state for onGet
+    this.currentLowTempState = 0;
+    lowTempSensorService.getCharacteristic(this.api.hap.Characteristic.OccupancyDetected)
+      .onGet(() => this.currentLowTempState);
 
     // Start polling for temperature forecast
     this.startTemperaturePolling(highTempAccessory, lowTempAccessory, stationId, highTempThreshold, lowTempThreshold, checkInterval);
@@ -140,46 +132,48 @@ class TemperatureForecastPlatform {
 
       this.log.info(`Today's forecast - High: ${todayHighTemp}°F, Low: ${todayLowTemp}°F`);
 
-      // Update high temperature switch with enhanced debugging
-      const highTempSwitchService = highTempAccessory.getService(this.api.hap.Service.Switch);
-      const highTempCurrentState = highTempSwitchService.getCharacteristic(this.api.hap.Characteristic.On).value;
-      const highTempNewState = todayHighTemp !== null && todayHighTemp >= highTempThreshold;
+      // Update high temperature sensor with enhanced debugging
+      const highTempSensorService = highTempAccessory.getService(this.api.hap.Service.OccupancySensor);
+      const highTempCurrentState = highTempSensorService.getCharacteristic(this.api.hap.Characteristic.OccupancyDetected).value;
+      const highTempNewState = todayHighTemp !== null && todayHighTemp >= highTempThreshold ? 1 : 0;
+      this.currentHighTempState = highTempNewState;
       
-      this.log.info(`[DEBUG] High Temp Switch - Current State: ${highTempCurrentState ? 'ON' : 'OFF'}, New State: ${highTempNewState ? 'ON' : 'OFF'}, Forecast: ${todayHighTemp}°F, Threshold: ${highTempThreshold}°F`);
+      this.log.info(`[DEBUG] High Temp Sensor - Current State: ${highTempCurrentState ? 'DETECTED' : 'NOT DETECTED'}, New State: ${highTempNewState ? 'DETECTED' : 'NOT DETECTED'}, Forecast: ${todayHighTemp}°F, Threshold: ${highTempThreshold}°F`);
       
       if (highTempCurrentState !== highTempNewState) {
-        this.log.info(`[STATE CHANGE] High temperature condition ${highTempNewState ? 'met' : 'not met'}: ${todayHighTemp}°F >= ${highTempThreshold}°F`);
-        this.log.info(`[HOMEBRIDGE] Updating high temp switch from ${highTempCurrentState ? 'ON' : 'OFF'} to ${highTempNewState ? 'ON' : 'OFF'}`);
+        this.log.info(`[STATE CHANGE] High temperature condition ${highTempNewState ? 'detected' : 'not detected'}: ${todayHighTemp}°F >= ${highTempThreshold}°F`);
+        this.log.info(`[HOMEBRIDGE] Updating high temp sensor from ${highTempCurrentState ? 'DETECTED' : 'NOT DETECTED'} to ${highTempNewState ? 'DETECTED' : 'NOT DETECTED'}`);
         
         try {
-          highTempSwitchService.getCharacteristic(this.api.hap.Characteristic.On).updateValue(highTempNewState);
-          this.log.info(`[HOMEBRIDGE] Successfully updated high temp switch to ${highTempNewState ? 'ON' : 'OFF'}`);
+          highTempSensorService.updateCharacteristic(this.api.hap.Characteristic.OccupancyDetected, highTempNewState);
+          this.log.info(`[HOMEBRIDGE] Successfully updated high temp sensor to ${highTempNewState ? 'DETECTED' : 'NOT DETECTED'}`);
         } catch (error) {
-          this.log.error(`[HOMEBRIDGE] Failed to update high temp switch: ${error.message}`);
+          this.log.error(`[HOMEBRIDGE] Failed to update high temp sensor: ${error.message}`);
         }
       } else {
-        this.log.info(`[DEBUG] High temperature status unchanged: ${highTempNewState ? 'Still ON (above threshold)' : 'Still OFF (below threshold)'}`);
+        this.log.info(`[DEBUG] High temperature status unchanged: ${highTempNewState ? 'Still DETECTED (above threshold)' : 'Still NOT DETECTED (below threshold)'}`);
       }
 
-      // Update low temperature switch with enhanced debugging
-      const lowTempSwitchService = lowTempAccessory.getService(this.api.hap.Service.Switch);
-      const lowTempCurrentState = lowTempSwitchService.getCharacteristic(this.api.hap.Characteristic.On).value;
-      const lowTempNewState = todayLowTemp !== null && todayLowTemp < lowTempThreshold;
+      // Update low temperature sensor with enhanced debugging
+      const lowTempSensorService = lowTempAccessory.getService(this.api.hap.Service.OccupancySensor);
+      const lowTempCurrentState = lowTempSensorService.getCharacteristic(this.api.hap.Characteristic.OccupancyDetected).value;
+      const lowTempNewState = todayLowTemp !== null && todayLowTemp < lowTempThreshold ? 1 : 0;
+      this.currentLowTempState = lowTempNewState;
       
-      this.log.info(`[DEBUG] Low Temp Switch - Current State: ${lowTempCurrentState ? 'ON' : 'OFF'}, New State: ${lowTempNewState ? 'ON' : 'OFF'}, Forecast: ${todayLowTemp}°F, Threshold: ${lowTempThreshold}°F`);
+      this.log.info(`[DEBUG] Low Temp Sensor - Current State: ${lowTempCurrentState ? 'DETECTED' : 'NOT DETECTED'}, New State: ${lowTempNewState ? 'DETECTED' : 'NOT DETECTED'}, Forecast: ${todayLowTemp}°F, Threshold: ${lowTempThreshold}°F`);
       
       if (lowTempCurrentState !== lowTempNewState) {
-        this.log.info(`[STATE CHANGE] Low temperature condition ${lowTempNewState ? 'met' : 'not met'}: ${todayLowTemp}°F < ${lowTempThreshold}°F`);
-        this.log.info(`[HOMEBRIDGE] Updating low temp switch from ${lowTempCurrentState ? 'ON' : 'OFF'} to ${lowTempNewState ? 'ON' : 'OFF'}`);
+        this.log.info(`[STATE CHANGE] Low temperature condition ${lowTempNewState ? 'detected' : 'not detected'}: ${todayLowTemp}°F < ${lowTempThreshold}°F`);
+        this.log.info(`[HOMEBRIDGE] Updating low temp sensor from ${lowTempCurrentState ? 'DETECTED' : 'NOT DETECTED'} to ${lowTempNewState ? 'DETECTED' : 'NOT DETECTED'}`);
         
         try {
-          lowTempSwitchService.getCharacteristic(this.api.hap.Characteristic.On).updateValue(lowTempNewState);
-          this.log.info(`[HOMEBRIDGE] Successfully updated low temp switch to ${lowTempNewState ? 'ON' : 'OFF'}`);
+          lowTempSensorService.updateCharacteristic(this.api.hap.Characteristic.OccupancyDetected, lowTempNewState);
+          this.log.info(`[HOMEBRIDGE] Successfully updated low temp sensor to ${lowTempNewState ? 'DETECTED' : 'NOT DETECTED'}`);
         } catch (error) {
-          this.log.error(`[HOMEBRIDGE] Failed to update low temp switch: ${error.message}`);
+          this.log.error(`[HOMEBRIDGE] Failed to update low temp sensor: ${error.message}`);
         }
       } else {
-        this.log.info(`[DEBUG] Low temperature status unchanged: ${lowTempNewState ? 'Still ON (below threshold)' : 'Still OFF (above threshold)'}`);
+        this.log.info(`[DEBUG] Low temperature status unchanged: ${lowTempNewState ? 'Still DETECTED (below threshold)' : 'Still NOT DETECTED (above threshold)'}`);
       }
 
       this.log.debug('Temperature forecast check completed successfully');
@@ -246,7 +240,7 @@ class TemperatureForecastPlatform {
 
   configureAccessory(accessory) {
     // Check if we've already configured this accessory to prevent duplicates
-    const existingAccessory = this.switches.find(switch_ => switch_.UUID === accessory.UUID);
+    const existingAccessory = this.sensors.find(sensor => sensor.UUID === accessory.UUID);
     if (existingAccessory) {
       this.log.debug(`Accessory ${accessory.displayName} (${accessory.UUID}) already configured, skipping duplicate`);
       return;
@@ -254,10 +248,10 @@ class TemperatureForecastPlatform {
     
     this.log.info(`Configuring existing accessory: ${accessory.displayName}`);
     this.log.debug(`Accessory UUID: ${accessory.UUID}`);
-    this.switches.push(accessory);
+    this.sensors.push(accessory);
     
     // Log how many accessories we now have
-    this.log.info(`Total accessories configured: ${this.switches.length}`);
+    this.log.info(`Total accessories configured: ${this.sensors.length}`);
   }
 }
 
