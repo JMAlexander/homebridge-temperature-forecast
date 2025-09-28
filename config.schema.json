@@ -31,6 +31,12 @@
             "default": 32,
             "description": "Temperature below which the low temp sensor will detect (sensor will show 'detected')"
           },
+          "extreme_high_temp_threshold": {
+            "title": "Extreme High Temperature Threshold (°F)",
+            "type": "number",
+            "default": 90,
+            "description": "Temperature above which the extreme high temp sensor will detect (sensor will show 'detected')"
+          },
           "check_interval": {
             "title": "Check Interval (minutes)",
             "type": "integer",

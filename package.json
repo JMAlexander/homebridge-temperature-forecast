@@ -23,7 +23,6 @@
     "homebridge": ">=1.0.0"
   },
   "dependencies": {
-    "axios": "^1.6.7",
-    "homebridge-temperature-forecast": "file:../../../../var/lib/homebridge/node_modules/homebridge-temperature-forecast"
+    "axios": "^1.6.7"
   }
 }

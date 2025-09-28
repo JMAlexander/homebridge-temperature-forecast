@@ -6,10 +6,11 @@ This plugin was created by extracting the temperature functionality from the ori
 
 ## Features
 
-- **High Temperature Monitoring**: Creates a switch that turns ON when forecast high temperature exceeds a configurable threshold
-- **Low Temperature Monitoring**: Creates a switch that turns ON when forecast low temperature falls below a configurable threshold
+- **High Temperature Monitoring**: Creates a sensor that detects when forecast high temperature exceeds a configurable threshold
+- **Low Temperature Monitoring**: Creates a sensor that detects when forecast low temperature falls below a configurable threshold
+- **Extreme High Temperature Monitoring**: Creates a sensor that detects when forecast high temperature exceeds an extreme configurable threshold
 - **Real-time Updates**: Uses NWS forecast API to get current temperature predictions
-- **Configurable Thresholds**: Set custom high and low temperature thresholds
+- **Configurable Thresholds**: Set custom high, low, and extreme high temperature thresholds
 - **Polling Control**: Configurable check intervals (minimum 15 minutes)
 
 ## Files Created
@@ -23,7 +24,7 @@ This plugin was created by extracting the temperature functionality from the ori
 ## Key Differences from Rain Plugin
 
 - **Focused Scope**: Only handles temperature forecasting (no rain functionality)
-- **Dual Switches**: Creates both high and low temperature switches
+- **Triple Sensors**: Creates high, low, and extreme high temperature sensors
 - **NWS API Only**: Uses only the National Weather Service forecast API
 - **Temperature Logic**: Implements temperature threshold checking logic
 
@@ -39,6 +40,7 @@ This plugin was created by extracting the temperature functionality from the ori
         "station_id": "PHI",
         "high_temp_threshold": 80,
         "low_temp_threshold": 32,
+        "extreme_high_temp_threshold": 90,
         "check_interval": 30
       }
     }

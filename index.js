@@ -136,6 +136,39 @@ class LowTempAccessory extends TemperatureForecastAccessory {
   }
 }
 
+// Extreme High Temperature Accessory - extends base class
+class ExtremeHighTempAccessory extends TemperatureForecastAccessory {
+  constructor(log, name, platform, api) {
+    // Call parent constructor
+    super(log, name, 'extreme_high', platform, api);
+    
+    // Create ContactSensor service
+    const sensorService = this.addService(Service.ContactSensor, name);
+    
+    // Bind the ContactSensorState characteristic
+    this.bindCharacteristic(
+      sensorService,
+      Characteristic.ContactSensorState,
+      'Extreme High Temperature Status',
+      this.getExtremeHighTempState.bind(this),
+      null,
+      (value) => value === 1 ? 'Extreme High Temp Detected' : 'Normal Temp'
+    );
+    
+    this.log.info(`Extreme high temperature sensor created: ${name}`);
+    
+    // Call updateData once at the end of constructor (Google Nest pattern)
+    this.updateData();
+  }
+  
+  // Getter method for extreme high temperature state
+  // ContactSensorState: 0 = contact detected (normal), 1 = no contact/open (threshold triggered)
+  getExtremeHighTempState() {
+    const state = this.platform.extremeHighTempState ? 1 : 0;
+    return state;
+  }
+}
+
 class TemperatureForecastPlatform {
   constructor(log, config, api) {
     // Safety check for log parameter - provide fallback if undefined
@@ -160,6 +193,7 @@ class TemperatureForecastPlatform {
     // Platform-level state management (centralized state)
     this.highTempState = false;
     this.lowTempState = false;
+    this.extremeHighTempState = false;
     
     // Platform-level polling management
     this.pollingIntervals = {};
@@ -169,6 +203,7 @@ class TemperatureForecastPlatform {
     this.stationId = this.config.temperature_forecast?.station_id || 'PHI';
     this.highTempThreshold = this.config.temperature_forecast?.high_temp_threshold || 80;
     this.lowTempThreshold = this.config.temperature_forecast?.low_temp_threshold || 32;
+    this.extremeHighTempThreshold = this.config.temperature_forecast?.extreme_high_temp_threshold || 95;
     this.checkInterval = (this.config.temperature_forecast?.check_interval || 30) * 60 * 1000;
     
     this.log.info('TemperatureForecast platform initialized');
@@ -209,6 +244,12 @@ class TemperatureForecastPlatform {
       const lowTempAccessory = new LowTempAccessory(this.log, lowTempName, this, this.api);
       this.accessoryLookup[lowTempName] = lowTempAccessory;
       foundAccessories.push(lowTempAccessory);
+      
+      // Create extreme high temperature sensor
+      const extremeHighTempName = `${baseName} - Extreme High Temp`;
+      const extremeHighTempAccessory = new ExtremeHighTempAccessory(this.log, extremeHighTempName, this, this.api);
+      this.accessoryLookup[extremeHighTempName] = extremeHighTempAccessory;
+      foundAccessories.push(extremeHighTempAccessory);
       
     } else {
       this.log.warn('No temperature_forecast configuration found, skipping temperature sensors');
@@ -318,26 +359,32 @@ class TemperatureForecastPlatform {
       // Update platform state (centralized state management)
       const previousHighState = this.highTempState;
       const previousLowState = this.lowTempState;
+      const previousExtremeHighState = this.extremeHighTempState;
       
       this.highTempState = todayHighTemp !== null && todayHighTemp >= this.highTempThreshold;
       this.lowTempState = todayLowTemp !== null && todayLowTemp < this.lowTempThreshold;
+      this.extremeHighTempState = todayHighTemp !== null && todayHighTemp >= this.extremeHighTempThreshold;
       
       this.log.info(`[DEBUG] High Temp State - Previous: ${previousHighState ? 'DETECTED' : 'NOT DETECTED'}, New: ${this.highTempState ? 'DETECTED' : 'NOT DETECTED'}, Forecast: ${todayHighTemp}°F, Threshold: ${this.highTempThreshold}°F`);
       this.log.info(`[DEBUG] Low Temp State - Previous: ${previousLowState ? 'DETECTED' : 'NOT DETECTED'}, New: ${this.lowTempState ? 'DETECTED' : 'NOT DETECTED'}, Forecast: ${todayLowTemp}°F, Threshold: ${this.lowTempThreshold}°F`);
+      this.log.info(`[DEBUG] Extreme High Temp State - Previous: ${previousExtremeHighState ? 'DETECTED' : 'NOT DETECTED'}, New: ${this.extremeHighTempState ? 'DETECTED' : 'NOT DETECTED'}, Forecast: ${todayHighTemp}°F, Threshold: ${this.extremeHighTempThreshold}°F`);
       
       // Check if states changed and update accessories
-      if (previousHighState !== this.highTempState || previousLowState !== this.lowTempState) {
+      if (previousHighState !== this.highTempState || previousLowState !== this.lowTempState || previousExtremeHighState !== this.extremeHighTempState) {
         if (previousHighState !== this.highTempState) {
           this.log.info(`🔔 High temperature condition ${this.highTempState ? 'detected' : 'not detected'}: ${todayHighTemp}°F >= ${this.highTempThreshold}°F`);
         }
         if (previousLowState !== this.lowTempState) {
           this.log.info(`🔔 Low temperature condition ${this.lowTempState ? 'detected' : 'not detected'}: ${todayLowTemp}°F < ${this.lowTempThreshold}°F`);
         }
+        if (previousExtremeHighState !== this.extremeHighTempState) {
+          this.log.info(`🔔 Extreme high temperature condition ${this.extremeHighTempState ? 'detected' : 'not detected'}: ${todayHighTemp}°F >= ${this.extremeHighTempThreshold}°F`);
+        }
         
         // Trigger HomeKit updates using Google Nest pattern
         this.updateAllAccessories();
       } else {
-        this.log.info(`[DEBUG] Temperature status unchanged - High: ${this.highTempState ? 'Still DETECTED' : 'Still NOT DETECTED'}, Low: ${this.lowTempState ? 'Still DETECTED' : 'Still NOT DETECTED'}`);
+        this.log.info(`[DEBUG] Temperature status unchanged - High: ${this.highTempState ? 'Still DETECTED' : 'Still NOT DETECTED'}, Low: ${this.lowTempState ? 'Still DETECTED' : 'Still NOT DETECTED'}, Extreme High: ${this.extremeHighTempState ? 'Still DETECTED' : 'Still NOT DETECTED'}`);
       }
 
       this.log.debug('Temperature forecast check completed successfully');
@@ -370,10 +417,11 @@ class TemperatureForecastPlatform {
   }
 
   // Manual trigger method for testing - set temperature states
-  setTemperatureStates(highTemp, lowTemp) {
-    this.log.info(`Manual update: Setting temperature states - High: ${highTemp}, Low: ${lowTemp}`);
+  setTemperatureStates(highTemp, lowTemp, extremeHighTemp) {
+    this.log.info(`Manual update: Setting temperature states - High: ${highTemp}, Low: ${lowTemp}, Extreme High: ${extremeHighTemp}`);
     this.highTempState = highTemp;
     this.lowTempState = lowTemp;
+    this.extremeHighTempState = extremeHighTemp;
     this.updateAllAccessories();
   }
 
