@@ -7,7 +7,7 @@ This Homebridge plugin provides temperature forecast monitoring using the Nation
 ### Temperature Forecast Monitoring
 - Creates three read-only **sensors** that turn on based on temperature thresholds
 - High temperature sensor: detects when forecast high temperature exceeds threshold
-- Low temperature sensor: detects when forecast low temperature falls below threshold
+- Low temperature sensor: detects when current hourly temperature falls below threshold
 - Extreme high temperature sensor: detects when forecast high temperature exceeds extreme threshold
 - Uses real-time forecast data from the National Weather Service
 - Configurable check interval (minimum 15 minutes)
@@ -49,7 +49,7 @@ npm install -g homebridge-temperature-forecast
 - `name`: The base name for the sensors in HomeKit (default: "Temperature Forecast")
 - `station_id`: The NWS weather station ID (default: "PHI" for Philadelphia)
 - `high_temp_threshold`: Temperature above which the high temp sensor will detect (default: 80°F)
-- `low_temp_threshold`: Temperature below which the low temp sensor will detect (default: 32°F)
+- `low_temp_threshold`: Temperature below which the low temp sensor will detect based on the current hourly forecast temperature (default: 32°F)
 - `extreme_high_temp_threshold`: Temperature above which the extreme high temp sensor will detect (default: 90°F)
 - `check_interval`: How often to check temperature forecast in minutes (default: 30, minimum: 15)
 

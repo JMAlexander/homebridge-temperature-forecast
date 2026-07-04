@@ -1,35 +1,27 @@
 const axios = require('axios');
 
-let Accessory, Service, Characteristic, uuid;
+let Service, Characteristic;
 
-// Base class for Temperature Forecast accessories - Google Nest pattern
+// Base class implementing the AccessoryPlugin interface (Homebridge 2 compatible)
 class TemperatureForecastAccessory {
   constructor(log, name, accessoryType, platform, api) {
-    // Store references
     this.log = log;
     this.name = name;
-    this.accessoryType = accessoryType; // 'high' or 'low'
+    this.accessoryType = accessoryType; // 'high', 'low', or 'extreme_high'
     this.platform = platform;
     this.api = api;
-    
+    this.services = [];
+    this.boundCharacteristics = [];
+
     this.log.info(`Initializing ${accessoryType} temperature accessory: ${name}`);
-    
-    // Generate UUID for this accessory
-    const id = this.api.hap.uuid.generate('temperature-forecast.' + accessoryType + '.' + name);
-    
-    // Call parent Accessory constructor (will be set up in module.exports)
-    Accessory.call(this, name, id);
-    this.uuid_base = id;
-    
-    // Set up AccessoryInformation service
-    this.getService(Service.AccessoryInformation)
+
+    const infoService = new Service.AccessoryInformation();
+    infoService
       .setCharacteristic(Characteristic.Manufacturer, 'Temperature Forecast Plugin')
       .setCharacteristic(Characteristic.Model, 'Temperature Sensor')
       .setCharacteristic(Characteristic.Name, name)
       .setCharacteristic(Characteristic.SerialNumber, accessoryType + '-' + Date.now());
-    
-    // Initialize boundCharacteristics array for this accessory instance
-    this.boundCharacteristics = [];
+    this.services.push(infoService);
   }
   
   // Google Nest pattern: getServices method
@@ -56,16 +48,16 @@ class TemperatureForecastAccessory {
       actual.on('set', setFunc.bind(this));
     }
     
-    // Track bound characteristics for getValue() calls
-    this.boundCharacteristics.push([service, characteristic]);
+    // Track bound characteristics for updateData() calls
+    this.boundCharacteristics.push([service, characteristic, getFunc]);
     
     return actual;
   }
   
   // Google Nest pattern: updateData method
   updateData() {
-    this.boundCharacteristics.map(function (c) {
-      c[0].getCharacteristic(c[1]).getValue();
+    this.boundCharacteristics.forEach(([service, characteristic, getFunc]) => {
+      service.getCharacteristic(characteristic).updateValue(getFunc());
     });
   }
 }
@@ -76,8 +68,8 @@ class HighTempAccessory extends TemperatureForecastAccessory {
     // Call parent constructor
     super(log, name, 'high', platform, api);
     
-    // Create ContactSensor service
-    const sensorService = this.addService(Service.ContactSensor, name);
+    const sensorService = new Service.ContactSensor(name);
+    this.services.push(sensorService);
     
     // Bind the ContactSensorState characteristic
     this.bindCharacteristic(
@@ -109,8 +101,8 @@ class LowTempAccessory extends TemperatureForecastAccessory {
     // Call parent constructor
     super(log, name, 'low', platform, api);
     
-    // Create ContactSensor service
-    const sensorService = this.addService(Service.ContactSensor, name);
+    const sensorService = new Service.ContactSensor(name);
+    this.services.push(sensorService);
     
     // Bind the ContactSensorState characteristic
     this.bindCharacteristic(
@@ -142,8 +134,8 @@ class ExtremeHighTempAccessory extends TemperatureForecastAccessory {
     // Call parent constructor
     super(log, name, 'extreme_high', platform, api);
     
-    // Create ContactSensor service
-    const sensorService = this.addService(Service.ContactSensor, name);
+    const sensorService = new Service.ContactSensor(name);
+    this.services.push(sensorService);
     
     // Bind the ContactSensorState characteristic
     this.bindCharacteristic(
@@ -326,6 +318,7 @@ class TemperatureForecastPlatform {
       const periods = forecastResponse.data.properties.periods;
       let todayHighTemp = null;
       let todayLowTemp = null;
+      let currentTemp = null;
 
       // Find today's forecast periods
       const today = new Date();
@@ -354,7 +347,40 @@ class TemperatureForecastPlatform {
         }
       }
 
-      this.log.info(`Today's forecast - High: ${todayHighTemp}°F, Low: ${todayLowTemp}°F`);
+      // Fetch hourly forecast to determine current temperature
+      const hourlyUrl = `https://api.weather.gov/gridpoints/${this.stationId}/31,80/forecast/hourly`;
+      this.log.debug(`Making API request to: ${hourlyUrl}`);
+
+      const hourlyResponse = await axios.get(hourlyUrl, {
+        headers: {
+          'User-Agent': 'Homebridge-Temperature-Forecast/1.0.0 (https://github.com/jeffalexander/homebridge-temperature-forecast)',
+          'Accept': 'application/json'
+        },
+        timeout: 10000
+      });
+
+      this.log.debug('Hourly forecast API response received:', JSON.stringify(hourlyResponse.data, null, 2));
+
+      if (!hourlyResponse?.data?.properties?.periods) {
+        throw new Error('Invalid hourly forecast API response structure');
+      }
+
+      const hourlyPeriods = hourlyResponse.data.properties.periods;
+      const now = new Date();
+      for (const period of hourlyPeriods) {
+        const startTime = new Date(period.startTime);
+        const endTime = new Date(period.endTime);
+        if (now >= startTime && now < endTime) {
+          currentTemp = period.temperature;
+          break;
+        }
+      }
+
+      if (currentTemp === null && hourlyPeriods.length > 0) {
+        currentTemp = hourlyPeriods[0].temperature;
+      }
+
+      this.log.info(`Temperature summary - Forecast High: ${todayHighTemp}°F, Forecast Low: ${todayLowTemp}°F, Current: ${currentTemp}°F`);
 
       // Update platform state (centralized state management)
       const previousHighState = this.highTempState;
@@ -362,11 +388,11 @@ class TemperatureForecastPlatform {
       const previousExtremeHighState = this.extremeHighTempState;
       
       this.highTempState = todayHighTemp !== null && todayHighTemp >= this.highTempThreshold;
-      this.lowTempState = todayLowTemp !== null && todayLowTemp < this.lowTempThreshold;
+      this.lowTempState = currentTemp !== null && currentTemp < this.lowTempThreshold;
       this.extremeHighTempState = todayHighTemp !== null && todayHighTemp >= this.extremeHighTempThreshold;
       
       this.log.info(`[DEBUG] High Temp State - Previous: ${previousHighState ? 'DETECTED' : 'NOT DETECTED'}, New: ${this.highTempState ? 'DETECTED' : 'NOT DETECTED'}, Forecast: ${todayHighTemp}°F, Threshold: ${this.highTempThreshold}°F`);
-      this.log.info(`[DEBUG] Low Temp State - Previous: ${previousLowState ? 'DETECTED' : 'NOT DETECTED'}, New: ${this.lowTempState ? 'DETECTED' : 'NOT DETECTED'}, Forecast: ${todayLowTemp}°F, Threshold: ${this.lowTempThreshold}°F`);
+      this.log.info(`[DEBUG] Low Temp State - Previous: ${previousLowState ? 'DETECTED' : 'NOT DETECTED'}, New: ${this.lowTempState ? 'DETECTED' : 'NOT DETECTED'}, Current: ${currentTemp}°F, Threshold: ${this.lowTempThreshold}°F`);
       this.log.info(`[DEBUG] Extreme High Temp State - Previous: ${previousExtremeHighState ? 'DETECTED' : 'NOT DETECTED'}, New: ${this.extremeHighTempState ? 'DETECTED' : 'NOT DETECTED'}, Forecast: ${todayHighTemp}°F, Threshold: ${this.extremeHighTempThreshold}°F`);
       
       // Check if states changed and update accessories
@@ -375,7 +401,7 @@ class TemperatureForecastPlatform {
           this.log.info(`🔔 High temperature condition ${this.highTempState ? 'detected' : 'not detected'}: ${todayHighTemp}°F >= ${this.highTempThreshold}°F`);
         }
         if (previousLowState !== this.lowTempState) {
-          this.log.info(`🔔 Low temperature condition ${this.lowTempState ? 'detected' : 'not detected'}: ${todayLowTemp}°F < ${this.lowTempThreshold}°F`);
+          this.log.info(`🔔 Low temperature condition ${this.lowTempState ? 'detected' : 'not detected'}: ${currentTemp}°F < ${this.lowTempThreshold}°F`);
         }
         if (previousExtremeHighState !== this.extremeHighTempState) {
           this.log.info(`🔔 Extreme high temperature condition ${this.extremeHighTempState ? 'detected' : 'not detected'}: ${todayHighTemp}°F >= ${this.extremeHighTempThreshold}°F`);
@@ -438,26 +464,8 @@ class TemperatureForecastPlatform {
 }
 
 module.exports = (api) => {
-  // Set up global references (Google Nest pattern)
-  Accessory = api.hap.Accessory;
   Service = api.hap.Service;
   Characteristic = api.hap.Characteristic;
-  uuid = api.hap.uuid;
-  
-  // Set up inheritance for TemperatureForecastAccessory (Google Nest pattern)
-  const inherits = require('util').inherits;
-  const originalPrototype = TemperatureForecastAccessory.prototype;
-  inherits(TemperatureForecastAccessory, Accessory);
-  TemperatureForecastAccessory.prototype.parent = Accessory.prototype;
-  
-  // Restore our custom methods after inherits() call
-  for (const methodName in originalPrototype) {
-    TemperatureForecastAccessory.prototype[methodName] = originalPrototype[methodName];
-  }
-  
-  try {
-    api.registerPlatform('homebridge-temperature-forecast', 'TemperatureForecast', TemperatureForecastPlatform);
-  } catch (error) {
-    console.error('ERROR registering platform:', error.message);
-  }
+
+  api.registerPlatform('homebridge-temperature-forecast', 'TemperatureForecast', TemperatureForecastPlatform);
 };

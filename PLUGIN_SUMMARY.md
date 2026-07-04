@@ -7,7 +7,7 @@ This plugin was created by extracting the temperature functionality from the ori
 ## Features
 
 - **High Temperature Monitoring**: Creates a sensor that detects when forecast high temperature exceeds a configurable threshold
-- **Low Temperature Monitoring**: Creates a sensor that detects when forecast low temperature falls below a configurable threshold
+- **Low Temperature Monitoring**: Creates a sensor that detects when the current hourly temperature falls below a configurable threshold
 - **Extreme High Temperature Monitoring**: Creates a sensor that detects when forecast high temperature exceeds an extreme configurable threshold
 - **Real-time Updates**: Uses NWS forecast API to get current temperature predictions
 - **Configurable Thresholds**: Set custom high, low, and extreme high temperature thresholds
